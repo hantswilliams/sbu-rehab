@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mx-auto bg-white p-8 rounded-lg shadow-lg">
+
+    <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Metrics Dashboard</h1>
+    
+    <table id="metrics-table" style="width:100%">
+        <thead>
+            <tr>
+                <th>Session ID</th>
+                <th>Patient MRN</th>
+                <th>Patient Name</th>
+                <th>Exercise Type</th>
+                <th>Exercise Date</th>
+                <th>Max Range of Motion</th>
+                <th>Expected Count</th>
+                <th>Movement Count</th>
+                <th>Duration (s)</th>
+                <th>Max ROM (%)</th>
+                <th>Speed (%/ms)</th>
+                <th>Angle Changes</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    $(document).ready(function() {
+        $('#metrics-table').DataTable({
+            "scrollX": true,
+            "ajax": {
+                "url": "/metrics/data",
+                "dataSrc": ""
+            },
+            "columns": [
+                { "data": "meta_session_id" },
+                { "data": "meta_patient_mrn" },
+                { "data": "meta_patient_name" },
+                { "data": "meta_exercise_type" },
+                { "data": "meta_exercise_date" },
+                { "data": "meta_max_range_of_motion" },
+                { "data": "meta_expected_count" },
+                { "data": "movements", "render": function(data, type, row) {
+                        return data.map(m => m["Count of movement"]).join("<br>");
+                    }
+                },
+                { "data": "movements", "render": function(data, type, row) {
+                        return data.map(m => m["Duration (s)"]).join("<br>");
+                    }
+                },
+                { "data": "movements", "render": function(data, type, row) {
+                        return data.map(m => m["Maxim ROM percentage achieved"]).join("<br>");
+                    }
+                },
+                { "data": "movements", "render": function(data, type, row) {
+                        return data.map(m => m["Movement speed (%/ms)"]).join("<br>");
+                    }
+                },
+                { "data": "movements", "render": function(data, type, row) {
+                        return data.map(m => m["Stability - Angle change count"]).join("<br>");
+                    }
+                }
+            ],
+            "dom": 'Bfrtip',
+            "buttons": [
+                'copy', 'csv', 'excel', 'pdf', 'print'
+            ],
+            "initComplete": function () {
+                this.api().columns([1, 2, 3]).every(function () {
+                    var column = this;
+                    var select = $('<select><option value=""></option></select>')
+                        .appendTo($(column.footer()).empty())
+                        .on('change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex(
+                                $(this).val()
+                            );
+                            column
+                                .search(val ? '^' + val + '$' : '', true, false)
+                                .draw();
+                        });
+
+                    column.data().unique().sort().each(function (d, j) {
+                        select.append('<option value="' + d + '">' + d + '</option>')
+                    });
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

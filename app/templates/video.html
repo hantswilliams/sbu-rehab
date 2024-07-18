@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <p>This is a test message to verify rendering.</p>
+    <img id="video-feed" src="{{ url_for('video_feed_' ~ subject, patient_name=patient_name, patient_mrn=patient_mrn, max_range_of_motion=max_range_of_motion, expected_count=expected_count) }}" width="100%" height="auto">
+</div>
+<script>
+    function checkCompletion() {
+        console.log("Checking completion");  // Log before fetch
+        fetch('/check_completion')
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                console.log("Data received from /check_completion:", data);  // Log data
+                if (data.exercise_completed == 'success') {
+                    console.log("Exercise completed, redirecting");  // Log before redirect
+                    // reset the state of the exercise
+                    fetch('/reset_completion')
+                        .then(response => {
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log("Data received from /reset_completion:", data);  // Log data
+                        })
+                        .catch(error => console.error('Error:', error));
+                    
+                    // redirect to the home page
+                    window.location.href = "/";
+                }
+            })
+            // Catch any errors and log them and then stop the interval
+            .catch(error => console.error('Error:', error));
+
+    }
+
+    setInterval(checkCompletion, 1000);  // Check every second
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+    <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Rehabilitation Exercises</h1>
+    <form method="GET" action="{{ url_for('show') }}" onsubmit="return validateForm()">
+        <div class="mb-4">
+            <label class="block text-gray-700 font-bold mb-2">
+                <input type="radio" name="sub" value="left" class="mr-2 leading-tight" required>
+                LEFT ARM BICEP CURL
+            </label>
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700 font-bold mb-2">
+                <input type="radio" name="sub" value="right" class="mr-2 leading-tight" required>
+                RIGHT ARM BICEP CURL
+            </label>
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700 font-bold mb-2">
+                <input type="radio" name="sub" value="pushup" class="mr-2 leading-tight" required>
+                PUSHUP
+            </label>
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-700 font-bold mb-2">
+                <input type="radio" name="sub" value="squat" class="mr-2 leading-tight" required>
+                SQUAT
+            </label>
+        </div>
+        <div class="mb-4">
+            <label for="username" class="block text-gray-700 font-bold mb-2">Select User:</label>
+            <select name="username" id="username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                <option value="" disabled selected>Select a user</option>
+                {% for user in users %}
+                    <option value="{{ user.patient_mrn }}">{{ user.patient_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-4">
+            <label for="max_range_of_motion" class="block text-gray-700 font-bold mb-2">Max Range of Motion (0.01 to 1.0):</label>
+            <input type="number" name="max_range_of_motion" min="0.01" max="1.0" step="0.01" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+        </div>
+        <div class="mb-4">
+            <label for="expected_count" class="block text-gray-700 font-bold mb-2">Expected Count (1 to 20):</label>
+            <input type="number" name="expected_count" min="1" max="20" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+        </div>
+        <div class="text-center">
+            <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Submit
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function validateForm() {
+        const radioButtons = document.querySelectorAll('input[name="sub"]');
+        let isRadioChecked = false;
+        for (const radioButton of radioButtons) {
+            if (radioButton.checked) {
+                isRadioChecked = true;
+                break;
+            }
+        }
+        if (!isRadioChecked) {
+            alert("Please select an exercise.");
+            return false;
+        }
+
+        const username = document.getElementById('username').value;
+        if (username === "") {
+            alert("Please select a user.");
+            return false;
+        }
+
+        const maxRangeOfMotion = document.querySelector('input[name="max_range_of_motion"]').value;
+        if (maxRangeOfMotion === "" || maxRangeOfMotion < 0.01 || maxRangeOfMotion > 1.0) {
+            alert("Please enter a valid Max Range of Motion between 0.01 and 1.0.");
+            return false;
+        }
+
+        const expectedCount = document.querySelector('input[name="expected_count"]').value;
+        if (expectedCount === "" || expectedCount < 1 || expectedCount > 20) {
+            alert("Please enter a valid Expected Count between 1 and 20.");
+            return false;
+        }
+
+        return true;
+    }
+</script>
+
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+    <h1 class="text-xl font-bold text-center text-gray-800 mb-6">Exercise Metrics Visualization</h1>
+    <div class="mb-4">
+        <label for="username" class="block text-gray-700 font-bold mb-2">Select User:</label>
+        <select id="username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            <option value="">Select a user</option>
+            {% for user in users %}
+                <option value="{{ user.patient_mrn }}">{{ user.patient_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="charts"></div>
+</div>
+
+<script>
+    google.charts.load('current', {'packages':['corechart']});
+    
+    document.getElementById('username').addEventListener('change', function() {
+        const patientMRN = this.value;
+        if (patientMRN) {
+            fetch(`/get_metrics/${patientMRN}`)
+                .then(response => response.json())
+                .then(data => {
+                    drawCharts(data);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+
+    function drawCharts(data) {
+        const chartsContainer = document.getElementById('charts');
+        chartsContainer.innerHTML = '';  // Clear previous charts
+
+        const exerciseTypes = [...new Set(data.map(item => item.meta_exercise_type))];
+
+        exerciseTypes.forEach(type => {
+            const filteredData = data.filter(item => item.meta_exercise_type === type);
+            
+            drawChart(filteredData, type, 'Duration (s)', 'Duration', 'duration_chart');
+            drawChart(filteredData, type, 'Maxim ROM percentage achieved', 'Max ROM (%)', 'max_rom_chart');
+            drawChart(filteredData, type, 'Movement speed (%/ms)', 'Speed (%/ms)', 'speed_chart');
+            drawChart(filteredData, type, 'Stability - Angle change count', 'Angle Changes', 'angle_changes_chart');
+        });
+    }
+
+    function drawChart(data, exerciseType, dataField, chartTitle, chartId) {
+        const chartData = new google.visualization.DataTable();
+        chartData.addColumn('string', 'Date');
+        chartData.addColumn('number', chartTitle);
+        chartData.addColumn({type: 'string', role: 'tooltip', 'p': {'html': true}});
+
+        // Sort data by meta_exercise_date
+        data.sort((a, b) => new Date(a.meta_exercise_date) - new Date(b.meta_exercise_date));
+        
+        data.forEach(item => {
+            item.movements.forEach(movement => {
+                const date = new Date(item.meta_exercise_date);
+                const dateString = date.toISOString().split('T')[0];  // Extract date part only
+                const tooltip = `
+                    <div style="padding:10px; max-width:200px;">
+                        <b>${date.toLocaleString()}</b><br>
+                        ${chartTitle}: ${movement[dataField]}<br>
+                        <p>This photo was taken when the max ROM was first achieved for this test:</p>
+                        <img src="/${movement.image_path}" width="200"><br>
+                    </div>`;
+                chartData.addRow([dateString, movement[dataField], tooltip]);
+            });
+        });
+
+        const chartDiv = document.createElement('div');
+        chartDiv.id = `${chartId}_${exerciseType}`;
+        chartDiv.style.width = '100%';
+        chartDiv.style.height = '400px';
+        document.getElementById('charts').appendChild(chartDiv);
+
+        const chart = new google.visualization.LineChart(chartDiv);
+        chart.draw(chartData, {
+            title: `${chartTitle} for ${exerciseType}`,
+            hAxis: {
+                title: 'Date',
+                slantedText: true,  // Slant text for better readability
+                slantedTextAngle: 45,
+                format: 'yyyy-MM-dd',  // Format x-axis labels to show only date part
+                showTextEvery: 1  // Show every date label
+            },
+            vAxis: {
+                title: chartTitle
+            },
+            tooltip: { isHtml: true },
+            chartArea: {
+                left: 50,
+                top: 50,
+                width: '80%',
+                height: '70%'
+            }
+        });
+    }
+</script>
+{% endblock %}
