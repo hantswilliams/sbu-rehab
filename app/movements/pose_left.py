@@ -6,11 +6,19 @@ import time
 import uuid
 import requests
 import os
-from PIL import Image
 
-def save_gif(frames, gif_path):
-    images = [Image.fromarray(frame) for frame in frames]
-    images[0].save(gif_path, save_all=True, append_images=images[1:], duration=100, loop=0)
+def save_image(img, patient_mrn, meta_session_id, count):
+    # Create the static folder if it doesn't exist
+    if not os.path.exists('static/max_rom'):
+        os.makedirs('static/max_rom')
+    
+    # Define the image path
+    image_path = f'static/max_rom/{patient_mrn}_{meta_session_id}_{count}.jpg'
+    
+    # Save the image
+    cv2.imwrite(image_path, img)
+    
+    return image_path
 
 def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, expected_count):
     max_range_of_motion_percent = max_range_of_motion * 100
@@ -25,11 +33,12 @@ def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, exp
     countdown = 3
     start_time = time.time()
     movements = []
-    angle_change_count = 0  # Count of angle changes
-    previous_angle = None  # Previous angle to compare with
-    movement_start_time = time.time()  # Initialize the movement start time
+    angle_change_count = 0
+    previous_angle = None
+    movement_start_time = time.time()
     exercise_date = time.strftime("%Y-%m-%d %H:%M:%S")
     meta_session_id = "POSELEFT-" + str(uuid.uuid4())[:4] + "-" + str(uuid.uuid4())[:4]
+    frames_for_gif = []
 
     data = {
         "meta_session_id": meta_session_id,
@@ -43,7 +52,9 @@ def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, exp
 
     with detector.pose:
         while True:
-            ret, img = cap.read() # 640 x 480
+            ret, img = cap.read()
+            if not ret:
+                break
             img = detector.findPose(img, False)
             lmList = detector.findPosition(img, False)
             elapsed_time = time.time() - start_time
@@ -91,26 +102,29 @@ def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, exp
                     if form == 1:
                         if per == 0 and max_per >= 50:
                             feedback = "now go UP"
-                            feedback_color = (0, 255, 0)  # Green for UP
+                            feedback_color = (0, 255, 0)
                             if direction == 0:
                                 movement_duration = time.time() - movement_start_time
-                                movement_speed = max_per / movement_duration # Speed in percentage per second (%/s)
+                                movement_speed = max_per / movement_duration
                                 if movement_start_time:
+                                    frames_for_gif.append(img)
+                                    if len(frames_for_gif) > 30:
+                                        frames_for_gif.pop(0)
                                     movements.append({
                                         "Count of movement": count + 1,
-                                        "Duration (s)": time.time() - movement_start_time,  # Duration in seconds
+                                        "Duration (s)": time.time() - movement_start_time,
                                         "Maxim ROM percentage achieved": max_per,
                                         "Movement speed (%/ms)": movement_speed,
                                         "Stability - Angle change count": angle_change_count,
-                                        "image_path": save_image(img, patient_mrn, meta_session_id, count + 1),  # Save the image and get the path
+                                        "image_path": save_image(img, patient_mrn, meta_session_id, count + 1),
                                     })
                                 count += 1
                                 direction = 1
-                                max_per = 0  # Reset the max percentage after a complete curl
+                                max_per = 0
                                 movement_start_time = time.time()
                         elif per >= (max_range_of_motion * 100):
                             feedback = "Now go DOWN"
-                            feedback_color = (0, 0, 255)  # Red for DOWN
+                            feedback_color = (0, 0, 255)
                             if direction == 1:
                                 direction = 0
                     
@@ -118,13 +132,11 @@ def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, exp
                     if form == 1:
                         cv2.rectangle(img, (1080, 50), (1100, 380), (0, 255, 0), 3)
                         cv2.rectangle(img, (1080, int(bar)), (1100, 380), (0, 255, 0), cv2.FILLED)
-                        cv2.putText(img, f'{int(per)}%', (950, 230), cv2.FONT_HERSHEY_PLAIN, 2,
-                                    (255, 255, 0), 2)
+                        cv2.putText(img, f'{int(per)}%', (950, 230), cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 0), 2)
 
                     # Counter (% complete of expected count)
                     percentage_complete = (count / expected_count) * 100
-                    cv2.putText(img, f'{int(percentage_complete)}%', (25, 455), cv2.FONT_HERSHEY_COMPLEX_SMALL, 5,
-                                (255, 0, 0), 5)
+                    cv2.putText(img, f'{int(percentage_complete)}%', (25, 455), cv2.FONT_HERSHEY_COMPLEX_SMALL, 5, (255, 0, 0), 5)
 
                     # Reps Left
                     reps_left = expected_count - count
@@ -148,17 +160,3 @@ def left_curl(patient_mrn, patient_name, exercise_type, max_range_of_motion, exp
 
     # Save the movements data for later retrieval
     np.save(f'./data/{meta_session_id}.npy', data)
-
-
-def save_image(img, patient_mrn, meta_session_id, count):
-    # Create the static folder if it doesn't exist
-    if not os.path.exists('static'):
-        os.makedirs('static')
-    
-    # Define the image path
-    image_path = f'static/max_rom/{patient_mrn}_{meta_session_id}_{count}.jpg'
-    
-    # Save the image
-    cv2.imwrite(image_path, img)
-    
-    return image_path

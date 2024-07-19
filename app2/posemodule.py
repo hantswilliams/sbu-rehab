@@ -30,6 +30,9 @@ class poseDetector:
             if self.results.pose_landmarks:
                 if draw:
                     self.mpDraw.draw_landmarks(img, self.results.pose_landmarks, self.mpPose.POSE_CONNECTIONS)
+                # print("Pose landmarks detected.")
+            else:
+                print("No pose landmarks detected.")
                     
             return img
         except Exception as e:

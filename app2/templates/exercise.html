@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise</title>
+</head>
+<body>
+    <h1>Exercise: {{ exercise }}</h1>
+    <div>
+        <video id="video" width="150" height="150" autoplay></video>
+        <img id="processedImage" width="250" height="250">
+    </div>
+    <script>
+        const video = document.getElementById('video');
+        const processedImage = document.getElementById('processedImage');
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;  // Reduce resolution to speed up processing
+        canvas.height = 240;
+        const context = canvas.getContext('2d');
+
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function (stream) {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(function (error) {
+                    console.log("Something went wrong!");
+                });
+        }
+
+        video.addEventListener('play', () => {
+            let lastFrameTime = 0;
+            const frameInterval = 200;  // 5 frames per second
+
+            function processFrame() {
+                const now = Date.now();
+                if (now - lastFrameTime < frameInterval) {
+                    requestAnimationFrame(processFrame);
+                    return;
+                }
+                lastFrameTime = now;
+
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                    const formData = new FormData();
+                    formData.append('video', blob, 'frame.jpg');
+                    formData.append('exercise', '{{ exercise }}');
+
+                    fetch('/left_curl_feed', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.blob())
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        processedImage.src = url;
+                        processedImage.onload = () => URL.revokeObjectURL(url);
+                    })
+                    .catch(error => console.error('Error:', error));
+                }, 'image/jpeg');
+                requestAnimationFrame(processFrame);
+            }
+            requestAnimationFrame(processFrame);
+        });
+    </script>
+</body>
+</html>

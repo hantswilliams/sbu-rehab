@@ -2,7 +2,7 @@
 
 {% block content %}
 <div>
-    <p>This is a test message to verify rendering.</p>
+    <p>Beginning exercise: {{ subject }} - {{ patient_name }} - {{ patient_mrn }}</p>
     <img id="video-feed" src="{{ url_for('video_feed_' ~ subject, patient_name=patient_name, patient_mrn=patient_mrn, max_range_of_motion=max_range_of_motion, expected_count=expected_count) }}" width="100%" height="auto">
 </div>
 <script>

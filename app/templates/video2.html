@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <p>This is a test message to verify rendering.</p>
+    <video id="video-feed" width="100%" height="auto" autoplay></video>
+</div>
+<script>
+    function captureFrame(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataURL = canvas.toDataURL('image/jpeg');
+        console.log("Captured Frame Data URL: ", dataURL);  // Log the full data URL
+        return dataURL.split(',')[1];  // Split and get base64 part only
+    }
+
+    async function processFrame(imageData, exerciseType, patientMRN, patientName, maxROM, expectedCount, count, direction, maxPer, movementStartTime, angleChangeCount, previousAngle, movements, framesForGif, metaSessionId) {
+        console.log("Sending Base64 Image Data: ", imageData);  // Log the base64 string to be sent
+        const response = await fetch('/process_frame', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData,
+                exercise_type: exerciseType,
+                patient_mrn: patientMRN,
+                patient_name: patientName,
+                max_range_of_motion: maxROM,
+                expected_count: expectedCount,
+                count: count,
+                direction: direction,
+                max_per: maxPer,
+                movement_start_time: movementStartTime,
+                angle_change_count: angleChangeCount,
+                previous_angle: previousAngle,
+                movements: movements,
+                frames_for_gif: framesForGif,
+                meta_session_id: metaSessionId
+            })
+        });
+        return response.json();
+    }
+
+    async function startProcessing() {
+        const video = document.getElementById('video-feed');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+
+        const exerciseType = '{{ subject }}';
+        const patientMRN = '{{ patient_mrn }}';
+        const patientName = '{{ patient_name }}';
+        const maxROM = '{{ max_range_of_motion }}';
+        const expectedCount = '{{ expected_count }}';
+        let count = 0;
+        let direction = 0;
+        let maxPer = 0;
+        let movementStartTime = Date.now();
+        let angleChangeCount = 0;
+        let previousAngle = null;
+        let movements = [];
+        let framesForGif = [];
+        const metaSessionId = "POSE-" + Math.random().toString(36).substr(2, 9);
+
+        async function captureAndProcess() {
+            const imageData = captureFrame(video);
+            const result = await processFrame(imageData, exerciseType, patientMRN, patientName, maxROM, expectedCount, count, direction, maxPer, movementStartTime, angleChangeCount, previousAngle, movements, framesForGif, metaSessionId);
+
+            count = result.count;
+            direction = result.direction;
+            maxPer = result.max_per;
+            movementStartTime = result.movement_start_time;
+            angleChangeCount = result.angle_change_count;
+            previousAngle = result.previous_angle;
+            movements = result.movements;
+            framesForGif = result.frames_for_gif;
+            const exerciseCompleted = result.exercise_completed;
+
+            if (exerciseCompleted) {
+                alert('Exercise Completed!');
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+
+            setTimeout(captureAndProcess, 1000);  // Adjust the interval as needed
+        }
+
+        captureAndProcess();
+    }
+
+    startProcessing();
+</script>
+{% endblock %}
