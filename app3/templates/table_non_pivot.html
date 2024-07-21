@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pose Data Table - Non-Pivot</title>
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.css">
+  <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+  <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.js"></script>
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('#poseTable').DataTable({
+        "ajax": {
+          "url": "/get_non_pivot_data",
+          "dataSrc": ""
+        },
+        "columns": [
+          { "data": 0, "title": "Timestamp" },
+          { "data": 1, "title": "Angle" },
+          { "data": 2, "title": "Exercise" },
+          { "data": 3, "title": "Count" },
+          { "data": 4, "title": "Test UUID" },
+          { "data": 5, "title": "User MRN" }
+        ]
+      });
+    });
+  </script>
+</head>
+<body>
+  <h1>Pose Data Table - Non-Pivot</h1>
+  <table id="poseTable" class="display" style="width:100%">
+  </table>
+</body>
+</html>
