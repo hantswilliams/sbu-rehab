@@ -9,4 +9,6 @@ __pycache__
 
 # avoid any file extension ending in .db
 *.db
+*.db-journal
+/app3/pose_estimations.db
 
