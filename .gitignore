@@ -7,8 +7,6 @@ __pycache__
 # mac os
 .DS_Store
 
-# app3/uploads
-app3/uploads
+# avoid any file extension ending in .db
+*.db
 
-# app3/pose_estimations.db
-app3/pose_estimations.db
