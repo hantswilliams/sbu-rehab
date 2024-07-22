@@ -1,30 +1,13 @@
-from flask import Flask, request, jsonify, render_template, Response, send_from_directory
+from flask import Flask, request, jsonify, render_template, Response
 import sqlite3
-import os
-import uuid
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def save_pose_to_db(keypoints, angle, exercise, count, test_uuid, user_mrn):
     conn = sqlite3.connect('pose_estimations.db')
     c = conn.cursor()
     c.execute('INSERT INTO pose_estimations (keypoints, angle, exercise, count, test_uuid, user_mrn) VALUES (?, ?, ?, ?, ?, ?)', 
               (keypoints, angle, exercise, count, test_uuid, user_mrn))
-    conn.commit()
-    conn.close()
-
-def save_video_to_db(test_uuid, user_mrn, video_path):
-    conn = sqlite3.connect('pose_estimations.db')
-    c = conn.cursor()
-    with open(video_path, 'rb') as file:
-        video = file.read()
-    c.execute('INSERT INTO video_sessions (test_uuid, user_mrn, video) VALUES (?, ?, ?)', 
-              (test_uuid, user_mrn, video))
     conn.commit()
     conn.close()
 
@@ -52,35 +35,85 @@ def save_pose():
 
 @app.route('/upload_video', methods=['POST'])
 def upload_video():
-    if 'video' not in request.files:
-        return jsonify({'status': 'failure', 'message': 'No video file provided'}), 400
-
     video = request.files['video']
-    test_uuid = request.form.get('test_uuid')
-    user_mrn = request.form.get('user_mrn')
+    test_uuid = request.form['test_uuid']
+    user_mrn = request.form['user_mrn']
+    output_type = request.form['output_type']
+    
+    video_blob = video.read()
 
-    if video and test_uuid and user_mrn:
-        filename = secure_filename(video.filename)
-        video_path = os.path.join('uploads', filename)
-        video.save(video_path)
-        save_video_to_db(test_uuid, user_mrn, video_path)
-        return jsonify({'status': 'success'})
-    return jsonify({'status': 'failure'}), 400
+    conn = sqlite3.connect('pose_estimations.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO videos (test_uuid, user_mrn, video, output_type) VALUES (?, ?, ?, ?)', 
+              (test_uuid, user_mrn, video_blob, output_type))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
 
 @app.route('/videos', methods=['GET'])
-def list_videos():
-    videos = os.listdir(app.config['UPLOAD_FOLDER'])
-    videos_info = [{'name': video, 'path': f'/uploads/{video}'} for video in videos]
-    return jsonify(videos_info)
+def get_videos():
+    conn = sqlite3.connect('pose_estimations.db')
+    c = conn.cursor()
+    c.execute('SELECT id, test_uuid, output_type FROM videos')
+    data = c.fetchall()
+    conn.close()
+    return jsonify([{'id': row[0], 'name': f"{row[1]}_{row[2]}"} for row in data])
 
-@app.route('/uploads/<filename>', methods=['GET'])
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/video/<int:video_id>', methods=['GET'])
+def get_video(video_id):
+    conn = sqlite3.connect('pose_estimations.db')
+    c = conn.cursor()
+    c.execute('SELECT video FROM videos WHERE id = ?', (video_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return Response(row[0], mimetype='video/mp4')
+    return 'Video not found', 404
+
+@app.route('/video_metadata/<int:video_id>', methods=['GET'])
+def get_video_metadata(video_id):
+    conn = sqlite3.connect('pose_estimations.db')
+    c = conn.cursor()
+
+    try:
+        # Get video metadata
+        c.execute('SELECT video, test_uuid, user_mrn FROM videos WHERE id = ?', (video_id,))
+        video_row = c.fetchone()
+
+        if not video_row:
+            return jsonify({'error': 'Video not found'}), 404
+
+        video_blob, test_uuid, user_mrn = video_row
+
+        # Get session details
+        c.execute('SELECT angle, count, exercise FROM pose_estimations WHERE test_uuid = ?', (test_uuid,))
+        pose_rows = c.fetchall()
+
+        # Get the maximum count
+        max_count = (max([row[1] for row in pose_rows])) + 1 if pose_rows else 0
+
+        # Fetch user details
+        c.execute('SELECT first_name, last_name FROM users WHERE mrn = ?', (user_mrn,))
+        user_row = c.fetchone()
+
+        user_name = f"{user_row[0]} {user_row[1]}" if user_row else "Unknown User"
+
+        metadata = {
+            'test_uuid': test_uuid,
+            'user_name': user_name,
+            'exercise': pose_rows[0][2] if pose_rows else 'N/A',
+            'movement_count': max_count,
+            'pose_data': pose_rows
+        }
+
+        return jsonify(metadata)
+    finally:
+        conn.close()
+
 
 @app.route('/watch', methods=['GET'])
 def watch():
     return render_template('watch.html')
-
 
 @app.route('/get_poses', methods=['GET'])
 def get_poses():

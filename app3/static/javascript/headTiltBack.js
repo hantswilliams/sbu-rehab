@@ -145,7 +145,10 @@ function stopAnalysis() {
     stream.getTracks().forEach(track => track.stop());
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop(); // Stop recording
+    mediaRecorder.stop(); // Stop recording the raw video
+  }
+  if (mediaRecorderCanvas && mediaRecorderCanvas.state === 'recording') {
+    mediaRecorderCanvas.stop(); // Stop recording the processed video
   }
   document.getElementById('message-box').style.display = 'none';
   alert("Exercise stopped. Please re-enter the values to start again.");

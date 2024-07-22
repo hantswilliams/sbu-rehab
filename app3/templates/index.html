@@ -44,26 +44,27 @@
     </select>
   </div>
   <div class="mb-4">
-    <select id="exercise-selector" class="border border-gray-300 p-2 rounded" onchange="loadExerciseScript()">
-      <option value="">Select Exercise</option>
+    <select id="exercise-selector" class="border border-gray-300 p-2 rounded" onchange="loadExerciseScript(); checkFormCompletion();">
+      <option value="" disabled selected>Select Exercise</option>
       <option value="headTiltBack">Head Tilt Back</option>
       <option value="headTiltForward">Head Tilt Forward</option>
-      <!-- Add more exercises here -->
+      <option value="headTiltLeft">Head Tilt Left</option>
+      <option value="headTiltRight">Head Tilt Right</option>
     </select>
   </div>
   <div class="mb-4">
     <label for="angle-input" class="block text-gray-700">Enter Target Angle Change:</label>
-    <input type="number" id="angle-input" class="border border-gray-300 p-2 rounded" placeholder="25">
+    <input type="number" id="angle-input" class="border border-gray-300 p-2 rounded" placeholder="25" oninput="checkFormCompletion()">
   </div>
   <div class="mb-4">
     <label for="reps-input" class="block text-gray-700">Enter Number of Repetitions:</label>
-    <input type="number" id="reps-input" class="border border-gray-300 p-2 rounded" placeholder="3">
-    <button id="start-button" class="bg-blue-500 text-white p-2 rounded">Start Analysis</button>
+    <input type="number" id="reps-input" class="border border-gray-300 p-2 rounded" placeholder="3" oninput="checkFormCompletion()">
+    <button id="start-button" class="bg-blue-500 text-white p-2 rounded" disabled>Start Analysis</button>
     <button id="stop-button" class="bg-red-500 text-white p-2 rounded">Stop Analysis</button>
   </div>
   <div id="progress-bar-container" class="relative w-full bg-gray-300 rounded h-6 mb-4">
     <div id="progress-bar" class="h-6 bg-gray-500 rounded"></div>
-    <div id="progress-bar-text" class="progress-bar-text">0°</div>
+    <div class="progress-bar-text" id="progress-bar-text">0°</div>
   </div>
   <div class="mb-4">
     <label for="count-view" class="block text-gray-700">Current Count:</label>
@@ -95,7 +96,11 @@
     let testUuid;
     let currentExerciseScript = null;
     let mediaRecorder;
+    let mediaRecorderCanvas;
     let recordedChunks = [];
+    let recordedChunksCanvas = [];
+    let rawVideoSaved = false;
+    let processedVideoSaved = false;
 
     async function setupCamera() {
       const video = document.getElementById('video');
@@ -115,6 +120,16 @@
         }
       };
       mediaRecorder.onstop = saveVideo;
+
+      // Set up MediaRecorder to record the canvas stream
+      const canvasStream = document.getElementById('output').captureStream();
+      mediaRecorderCanvas = new MediaRecorder(canvasStream);
+      mediaRecorderCanvas.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          recordedChunksCanvas.push(event.data);
+        }
+      };
+      mediaRecorderCanvas.onstop = saveCanvasVideo;
 
       return new Promise((resolve) => {
         video.onloadedmetadata = () => {
@@ -140,25 +155,64 @@
       });
     }
 
-    function saveVideo() {
-      const blob = new Blob(recordedChunks, {
-        type: 'video/mp4'
-      });
+    function checkFormCompletion() {
+      const userSelector = document.getElementById('user-selector').value;
+      const exerciseSelector = document.getElementById('exercise-selector').value;
+      const angleInput = document.getElementById('angle-input').value;
+      const repsInput = document.getElementById('reps-input').value;
 
-      const formData = new FormData();
-      formData.append('video', blob, `${testUuid}.mp4`);
-      formData.append('test_uuid', testUuid);
-      formData.append('user_mrn', document.getElementById('user-selector').value);
-
-      fetch('/upload_video', {
-        method: 'POST',
-        body: formData
-      }).then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error('Error uploading video:', error));
+      const startButton = document.getElementById('start-button');
+      if (userSelector && exerciseSelector && angleInput && repsInput) {
+        startButton.disabled = false;
+      } else {
+        startButton.disabled = true;
+      }
     }
 
-    document.addEventListener('DOMContentLoaded', populateUserSelector);
+    function saveVideo() {
+      if (!rawVideoSaved) {
+        rawVideoSaved = true;
+        const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+
+        const formData = new FormData();
+        formData.append('video', blob, `${testUuid}_raw.mp4`);
+        formData.append('test_uuid', testUuid);
+        formData.append('user_mrn', document.getElementById('user-selector').value);
+        formData.append('output_type', 'raw');
+
+        fetch('/upload_video', {
+          method: 'POST',
+          body: formData
+        }).then(response => response.json())
+          .then(data => console.log(data))
+          .catch(error => console.error('Error uploading video:', error));
+      }
+    }
+
+    function saveCanvasVideo() {
+      if (!processedVideoSaved) {
+        processedVideoSaved = true;
+        const blob = new Blob(recordedChunksCanvas, { type: 'video/mp4' });
+
+        const formData = new FormData();
+        formData.append('video', blob, `${testUuid}_processed.mp4`);
+        formData.append('test_uuid', testUuid);
+        formData.append('user_mrn', document.getElementById('user-selector').value);
+        formData.append('output_type', 'processed');
+
+        fetch('/upload_video', {
+          method: 'POST',
+          body: formData
+        }).then(response => response.json())
+          .then(data => console.log(data))
+          .catch(error => console.error('Error uploading video:', error));
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      populateUserSelector();
+      checkFormCompletion();
+    });
 
     document.getElementById('start-button').addEventListener('click', async () => {
       const angleInput = document.getElementById('angle-input').value;
@@ -176,13 +230,17 @@
       isReturning = false;
       frameCount = 0;
       recordedChunks = [];
+      recordedChunksCanvas = [];
+      rawVideoSaved = false;
+      processedVideoSaved = false;
       document.getElementById('count-view').innerText = 0;
       document.getElementById('message-box').innerText = "Move your head up!";
       document.getElementById('message-box').style.display = 'block'; // Show the message box when exercise starts
-      
+
       const video = await setupCamera();
       const net = await loadPosenet();
-      mediaRecorder.start(); // Start recording the video
+      mediaRecorder.start(); // Start recording the raw video
+      mediaRecorderCanvas.start(); // Start recording the processed video
       estimatePose(video, net);
     });
 
@@ -201,7 +259,10 @@
         stream.getTracks().forEach(track => track.stop());
       }
       if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop(); // Stop recording
+        mediaRecorder.stop(); // Stop recording the raw video
+      }
+      if (mediaRecorderCanvas && mediaRecorderCanvas.state === 'recording') {
+        mediaRecorderCanvas.stop(); // Stop recording the processed video
       }
       document.getElementById('message-box').style.display = 'none';
       alert("Exercise stopped. Please re-enter the values to start again.");

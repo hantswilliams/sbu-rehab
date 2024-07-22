@@ -4,8 +4,29 @@
   <meta charset="UTF-8">
   <title>Watch Videos</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .video-container {
+      margin-top: 20px;
+    }
+    .data-output {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      border: 1px solid #ddd;
+      padding: 10px;
+      background-color: #fff;
+      border-radius: 5px;
+      width: 640px; /* Adjust to match the video width */
+    }
+    .metadata {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #555;
+    }
+    .chart-container {
+      width: 640px; /* Adjust to match the video width */
       margin-top: 20px;
     }
   </style>
@@ -21,25 +42,141 @@
   <div class="video-container">
     <video id="video-player" class="border border-gray-300 rounded mb-4" width="640" height="480" controls></video>
   </div>
+  <div class="data-output">
+    <div id="angle-output">Angle: N/A</div>
+    <div id="metadata" class="metadata"></div>
+  </div>
+  <div class="chart-container">
+    <canvas id="angle-chart"></canvas>
+  </div>
   <script>
+    let videoPlayer;
+    let videoMetadata = [];
+    let angleChart;
+    let chartData = [];
+
     async function populateVideoSelector() {
       const response = await fetch('/videos');
       const videos = await response.json();
       const videoSelector = document.getElementById('video-selector');
       videos.forEach(video => {
         const option = document.createElement('option');
-        option.value = video.path;
+        option.value = video.id;
         option.text = video.name;
         videoSelector.appendChild(option);
       });
     }
 
+    async function fetchVideoData(videoId) {
+      const response = await fetch(`/video_metadata/${videoId}`);
+      videoMetadata = await response.json();
+      return videoMetadata;
+    }
+
+    function updateAngleOutput(currentTime) {
+      const angleOutput = document.getElementById('angle-output');
+      let currentAngle = 'N/A';
+
+      // Find the closest timestamp without going over
+      for (let i = 0; i < videoMetadata.pose_data.length; i++) {
+        if (i / videoMetadata.pose_data.length * videoPlayer.duration >= currentTime) {
+          currentAngle = videoMetadata.pose_data[i][0];
+          break;
+        }
+      }
+
+      angleOutput.textContent = `Angle: ${currentAngle}`;
+      updateChart(currentTime);
+    }
+
+    function updateMetadata(metadata) {
+      const metadataDiv = document.getElementById('metadata');
+      metadataDiv.innerHTML = `
+        <div>User: ${metadata.user_name}</div>
+        <div>Session UUID: ${metadata.test_uuid}</div>
+        <div>Movement Count: ${metadata.movement_count}</div>
+        <div>Exercise: ${metadata.exercise}</div>
+      `;
+    }
+
+    function updateChart(currentTime) {
+      if (angleChart) {
+        const currentIndex = Math.floor((currentTime / videoPlayer.duration) * chartData.length);
+        angleChart.data.datasets[1].data = chartData.map((_, index) => index === currentIndex ? chartData[index] : null);
+        angleChart.update();
+      }
+    }
+
+    function initializeChart(poseData) {
+      const ctx = document.getElementById('angle-chart').getContext('2d');
+      const labels = poseData.map((_, index) => index);
+      chartData = poseData.map(row => row[0]);
+
+      if (angleChart) {
+        angleChart.destroy();
+      }
+
+      angleChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Angle',
+            data: chartData,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1,
+            fill: false
+          }, {
+            label: 'Current Frame',
+            data: Array(chartData.length).fill(null),
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            pointRadius: 5,
+            fill: false,
+            showLine: false
+          }]
+        },
+        options: {
+          animation: {
+            duration: 0 // Disable animation for real-time updates
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Frame'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Angle (degrees)'
+              },
+              min: 0,
+              max: 180
+            }
+          }
+        }
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      videoPlayer = document.getElementById('video-player');
+
       populateVideoSelector();
-      document.getElementById('video-selector').addEventListener('change', () => {
-        const videoPlayer = document.getElementById('video-player');
-        const selectedVideo = document.getElementById('video-selector').value;
-        videoPlayer.src = selectedVideo;
+
+      document.getElementById('video-selector').addEventListener('change', async () => {
+        const videoId = document.getElementById('video-selector').value;
+        videoPlayer.src = `/video/${videoId}`;
+        const metadata = await fetchVideoData(videoId);
+
+        updateMetadata(metadata);
+        initializeChart(metadata.pose_data);
+
+        videoPlayer.addEventListener('timeupdate', () => {
+          const currentTime = videoPlayer.currentTime;
+          updateAngleOutput(currentTime);
+        });
       });
     });
   </script>
