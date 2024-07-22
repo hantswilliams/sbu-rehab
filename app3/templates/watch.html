@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Watch Videos</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .video-container {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center h-screen">
+  <div class="mb-4">
+    <label for="video-selector" class="block text-gray-700">Select Video:</label>
+    <select id="video-selector" class="border border-gray-300 p-2 rounded">
+      <option value="" disabled selected>Select an option!</option>
+      <!-- Videos will be populated here -->
+    </select>
+  </div>
+  <div class="video-container">
+    <video id="video-player" class="border border-gray-300 rounded mb-4" width="640" height="480" controls></video>
+  </div>
+  <script>
+    async function populateVideoSelector() {
+      const response = await fetch('/videos');
+      const videos = await response.json();
+      const videoSelector = document.getElementById('video-selector');
+      videos.forEach(video => {
+        const option = document.createElement('option');
+        option.value = video.path;
+        option.text = video.name;
+        videoSelector.appendChild(option);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      populateVideoSelector();
+      document.getElementById('video-selector').addEventListener('change', () => {
+        const videoPlayer = document.getElementById('video-player');
+        const selectedVideo = document.getElementById('video-selector').value;
+        videoPlayer.src = selectedVideo;
+      });
+    });
+  </script>
+</body>
+</html>

@@ -144,6 +144,9 @@ function calculateAngle(a, b, c) {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop(); // Stop recording
+    }
     document.getElementById('message-box').style.display = 'none';
     alert("Exercise stopped. Please re-enter the values to start again.");
   }

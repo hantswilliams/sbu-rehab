@@ -40,6 +40,16 @@ def create_database():
               FOREIGN KEY (user_mrn) REFERENCES users(mrn))
               ''')
 
+    # Create video_sessions table
+    c.execute('''
+              CREATE TABLE video_sessions
+              (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              test_uuid TEXT,
+              user_mrn TEXT,
+              video BLOB,
+              FOREIGN KEY (user_mrn) REFERENCES users(mrn))
+              ''')
+
     conn.commit()
     conn.close()
 

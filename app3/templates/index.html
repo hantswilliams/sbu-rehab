@@ -94,6 +94,8 @@
     let stream;
     let testUuid;
     let currentExerciseScript = null;
+    let mediaRecorder;
+    let recordedChunks = [];
 
     async function setupCamera() {
       const video = document.getElementById('video');
@@ -104,6 +106,15 @@
         video: true
       });
       video.srcObject = stream;
+
+      // Set up MediaRecorder to record the video stream
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+      mediaRecorder.onstop = saveVideo;
 
       return new Promise((resolve) => {
         video.onloadedmetadata = () => {
@@ -129,6 +140,24 @@
       });
     }
 
+    function saveVideo() {
+      const blob = new Blob(recordedChunks, {
+        type: 'video/mp4'
+      });
+
+      const formData = new FormData();
+      formData.append('video', blob, `${testUuid}.mp4`);
+      formData.append('test_uuid', testUuid);
+      formData.append('user_mrn', document.getElementById('user-selector').value);
+
+      fetch('/upload_video', {
+        method: 'POST',
+        body: formData
+      }).then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Error uploading video:', error));
+    }
+
     document.addEventListener('DOMContentLoaded', populateUserSelector);
 
     document.getElementById('start-button').addEventListener('click', async () => {
@@ -146,18 +175,37 @@
       isCounting = true;
       isReturning = false;
       frameCount = 0;
+      recordedChunks = [];
       document.getElementById('count-view').innerText = 0;
       document.getElementById('message-box').innerText = "Move your head up!";
       document.getElementById('message-box').style.display = 'block'; // Show the message box when exercise starts
       
       const video = await setupCamera();
       const net = await loadPosenet();
+      mediaRecorder.start(); // Start recording the video
       estimatePose(video, net);
     });
 
     document.getElementById('stop-button').addEventListener('click', () => {
       stopAnalysis();
     });
+
+    function stopAnalysis() {
+      isCounting = false;
+      repsCount = 0;
+      startingAngle = null;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop(); // Stop recording
+      }
+      document.getElementById('message-box').style.display = 'none';
+      alert("Exercise stopped. Please re-enter the values to start again.");
+    }
 
     function loadExerciseScript() {
       const exercise = document.getElementById('exercise-selector').value;

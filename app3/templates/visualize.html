@@ -17,94 +17,52 @@
     async function drawCharts() {
       const rawData = await fetchData();
       const exerciseData = {};
-      const uuidSet = new Set();
 
       rawData.forEach(item => {
         const [timestamp, angle, exercise, count, test_uuid] = item;
-        uuidSet.add(test_uuid);
+        const uuidCount = `${test_uuid}_${count}`;
         if (!exerciseData[exercise]) {
-          exerciseData[exercise] = {};
+          exerciseData[exercise] = [['Timestamp', 'Angle']];
         }
-        if (!exerciseData[exercise][test_uuid]) {
-          exerciseData[exercise][test_uuid] = [['Timestamp', 'Angle']];
-        }
-        exerciseData[exercise][test_uuid].push([new Date(timestamp), angle]);
-      });
-
-      const uuidSelector = document.getElementById('uuid-selector');
-      uuidSelector.innerHTML = '<option value="">All Data</option>'; // Add null option
-      uuidSet.forEach(uuid => {
-        const option = document.createElement('option');
-        option.value = uuid;
-        option.text = uuid;
-        uuidSelector.appendChild(option);
+        exerciseData[exercise].push([new Date(timestamp), angle]);
       });
 
       drawExerciseCharts(exerciseData);
     }
 
     function drawExerciseCharts(exerciseData) {
-      const selectedUuid = document.getElementById('uuid-selector').value;
       document.getElementById('charts').innerHTML = '';
 
       Object.keys(exerciseData).forEach(exercise => {
-        let dataArray = [];
-        if (selectedUuid) {
-          dataArray = exerciseData[exercise][selectedUuid];
-        } else {
-          dataArray = [['Timestamp', 'Angle']];
-          Object.values(exerciseData[exercise]).forEach(data => {
-            dataArray.push(...data.slice(1)); // Skip the header row for each data array
-          });
+        const dataArray = exerciseData[exercise];
+
+        if (dataArray.length > 1) { // Only draw chart if there's data
+          const data = google.visualization.arrayToDataTable(dataArray);
+
+          const options = {
+            title: `Range of Motion Over Time - ${exercise}`,
+            hAxis: { title: 'Time' },
+            vAxis: { title: 'Angle (degrees)' },
+            interpolateNulls: true
+          };
+
+          const chartDiv = document.createElement('div');
+          chartDiv.style.width = '100%';
+          chartDiv.style.height = '500px';
+          document.getElementById('charts').appendChild(chartDiv);
+
+          const chart = new google.visualization.LineChart(chartDiv);
+          chart.draw(data, options);
         }
-
-        const data = google.visualization.arrayToDataTable(dataArray);
-
-        const options = {
-          title: `Range of Motion Over Time - ${exercise}`,
-          hAxis: { title: 'Time' },
-          vAxis: { title: 'Angle (degrees)' },
-          interpolateNulls: true
-        };
-
-        const chartDiv = document.createElement('div');
-        chartDiv.style.width = '100%';
-        chartDiv.style.height = '500px';
-        document.getElementById('charts').appendChild(chartDiv);
-
-        const chart = new google.visualization.LineChart(chartDiv);
-        chart.draw(data, options);
       });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('uuid-selector').addEventListener('change', async () => {
-        const rawData = await fetchData();
-        const exerciseData = {};
-
-        rawData.forEach(item => {
-          const [timestamp, angle, exercise, count, test_uuid] = item;
-          if (!exerciseData[exercise]) {
-            exerciseData[exercise] = {};
-          }
-          if (!exerciseData[exercise][test_uuid]) {
-            exerciseData[exercise][test_uuid] = [['Timestamp', 'Angle']];
-          }
-          exerciseData[exercise][test_uuid].push([new Date(timestamp), angle]);
-        });
-
-        drawExerciseCharts(exerciseData);
-      });
-
       drawCharts(); // Initial call to draw charts with all data
     });
   </script>
 </head>
 <body>
-  <div>
-    <label for="uuid-selector">Select Test UUID:</label>
-    <select id="uuid-selector"></select>
-  </div>
   <div id="charts"></div>
 </body>
 </html>
