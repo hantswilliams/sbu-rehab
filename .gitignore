@@ -7,8 +7,5 @@ __pycache__
 # mac os
 .DS_Store
 
-# avoid any file extension ending in .db
-*.db
-*.db-journal
+# Specifically ignore the pose_estimations.db in app3 folder
 /app3/pose_estimations.db
-
