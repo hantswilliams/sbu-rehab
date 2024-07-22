@@ -29,6 +29,12 @@
       width: 640px; /* Adjust to match the video width */
       margin-top: 20px;
     }
+    .loading {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center h-screen">
@@ -39,6 +45,7 @@
       <!-- Videos will be populated here -->
     </select>
   </div>
+  <div id="loading-indicator" class="loading" style="display: none;">Loading...</div>
   <div class="video-container">
     <video id="video-player" class="border border-gray-300 rounded mb-4" width="640" height="480" controls></video>
   </div>
@@ -77,16 +84,16 @@
       const angleOutput = document.getElementById('angle-output');
       let currentAngle = 'N/A';
 
-      // Find the closest timestamp without going over
-      for (let i = 0; i < videoMetadata.pose_data.length; i++) {
-        if (i / videoMetadata.pose_data.length * videoPlayer.duration >= currentTime) {
-          currentAngle = videoMetadata.pose_data[i][0];
-          break;
-        }
+      // Normalize currentTime to frame index
+      const frameIndex = Math.floor((currentTime / videoPlayer.duration) * videoMetadata.pose_data.length);
+      if (frameIndex >= 0 && frameIndex < videoMetadata.pose_data.length) {
+        currentAngle = videoMetadata.pose_data[frameIndex][0];
       }
 
+      console.log('Current Time:', currentTime, 'Current Angle:', currentAngle, 'Frame Index:', frameIndex);
+
       angleOutput.textContent = `Angle: ${currentAngle}`;
-      updateChart(currentTime);
+      updateChart(frameIndex);
     }
 
     function updateMetadata(metadata) {
@@ -99,10 +106,9 @@
       `;
     }
 
-    function updateChart(currentTime) {
+    function updateChart(frameIndex) {
       if (angleChart) {
-        const currentIndex = Math.floor((currentTime / videoPlayer.duration) * chartData.length);
-        angleChart.data.datasets[1].data = chartData.map((_, index) => index === currentIndex ? chartData[index] : null);
+        angleChart.data.datasets[1].data = chartData.map((_, index) => index === frameIndex ? chartData[index] : null);
         angleChart.update();
       }
     }
@@ -167,16 +173,33 @@
 
       document.getElementById('video-selector').addEventListener('change', async () => {
         const videoId = document.getElementById('video-selector').value;
-        videoPlayer.src = `/video/${videoId}`;
-        const metadata = await fetchVideoData(videoId);
 
+        // Show loading indicator
+        document.getElementById('loading-indicator').style.display = 'block';
+
+        // Preload video and metadata
+        const metadata = await fetchVideoData(videoId);
         updateMetadata(metadata);
         initializeChart(metadata.pose_data);
 
-        videoPlayer.addEventListener('timeupdate', () => {
-          const currentTime = videoPlayer.currentTime;
-          updateAngleOutput(currentTime);
-        });
+        // Set video source and preload
+        videoPlayer.src = `/video/${videoId}`;
+        videoPlayer.load();
+
+        // Wait for video metadata to be loaded
+        videoPlayer.addEventListener('loadedmetadata', () => {
+          document.getElementById('loading-indicator').style.display = 'none'; // Hide loading indicator
+
+          videoPlayer.addEventListener('timeupdate', () => {
+            const currentTime = videoPlayer.currentTime;
+            updateAngleOutput(currentTime);
+          });
+
+          videoPlayer.currentTime = 0;
+          videoPlayer.play().then(() => {
+            videoPlayer.pause();
+          });
+        }, { once: true });
       });
     });
   </script>
